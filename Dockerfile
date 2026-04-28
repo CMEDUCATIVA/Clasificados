@@ -17,8 +17,10 @@ RUN apk add --no-cache \
     libzip-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd intl zip opcache
-RUN pecl install redis \
-    && docker-php-ext-enable redis
+RUN apk add --no-cache --virtual .phpize-deps $PHPIZE_DEPS \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && apk del .phpize-deps
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 

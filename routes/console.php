@@ -11,3 +11,7 @@ Artisan::command('inspire', function () {
 if (config('demo.enabled')) {
     Schedule::command('demo:cleanup')->hourly();
 }
+
+Schedule::command('location:sync-world')
+    ->daily()
+    ->withoutOverlapping();

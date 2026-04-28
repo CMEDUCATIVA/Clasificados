@@ -13,6 +13,11 @@ class LocationSeeder extends Seeder
 {
     public function run(): void
     {
+        $memoryLimit = (string) config('location.seed.memory_limit', '1024M');
+        if ($memoryLimit !== '') {
+            ini_set('memory_limit', $memoryLimit);
+        }
+
         $worldDataset = $this->worldDataset();
 
         if ($worldDataset !== null) {

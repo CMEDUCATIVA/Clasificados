@@ -29,7 +29,7 @@ exit(1);
 '
 
 set +e
-php artisan migrate --force
+CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=database php artisan migrate --force
 MIGRATE_EXIT=$?
 set -e
 
@@ -54,7 +54,7 @@ if [ "$MIGRATE_EXIT" -ne 0 ] && [ "${AUTO_FIX_SPATIE_PERMISSION_TABLES:-1}" = "1
     Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
     '
 
-    php artisan migrate --force
+    CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=database php artisan migrate --force
 fi
 
 php artisan config:cache

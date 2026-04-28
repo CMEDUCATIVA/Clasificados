@@ -89,36 +89,9 @@ if [ "${AUTO_SEED_AUTH_USERS:-1}" = "1" ]; then
     fi
 fi
 
-if [ "${AUTO_SEED_LOCATION_DATA:-1}" = "1" ]; then
-    echo "Checking seeded location data..."
-    if php -r '
-    require __DIR__ . "/vendor/autoload.php";
-    $app = require __DIR__ . "/bootstrap/app.php";
-    $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
-    $kernel->bootstrap();
-
-    try {
-        $exists = Illuminate\Support\Facades\Schema::hasTable("countries");
-        if (! $exists) {
-            exit(1);
-        }
-
-        $count = (int) Illuminate\Support\Facades\DB::table("countries")->count();
-        exit($count >= 200 ? 0 : 2);
-    } catch (Throwable) {
-        exit(1);
-    }
-    '; then
-        echo "Countries dataset is complete, skipping LocationSeeder."
-    else
-        CHECK_EXIT=$?
-        if [ "$CHECK_EXIT" -eq 2 ]; then
-            echo "Location dataset missing or incomplete (<200 countries), running LocationSeeder..."
-            CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=database php -d memory_limit=${LOCATION_SEED_MEMORY_LIMIT:-1024M} artisan db:seed --class=Modules\\Location\\Database\\Seeders\\LocationSeeder --force
-        else
-            echo "Could not verify countries table, skipping LocationSeeder."
-        fi
-    fi
+if [ "${AUTO_SYNC_LOCATION_ON_BOOT:-1}" = "1" ]; then
+    echo "Starting non-blocking location sync command in background..."
+    CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=database php artisan location:sync-world >> /var/www/html/storage/logs/location-sync.log 2>&1 &
 fi
 
 php artisan config:cache
@@ -128,4 +101,3 @@ php artisan storage:link
 
 php-fpm -D
 nginx -g 'daemon off;'
-

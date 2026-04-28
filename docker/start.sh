@@ -57,6 +57,70 @@ if [ "$MIGRATE_EXIT" -ne 0 ] && [ "${AUTO_FIX_SPATIE_PERMISSION_TABLES:-1}" = "1
     CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=database php artisan migrate --force
 fi
 
+if [ "${AUTO_SEED_AUTH_USERS:-1}" = "1" ]; then
+    echo "Checking seeded auth users..."
+    if php -r '
+    require __DIR__ . "/vendor/autoload.php";
+    $app = require __DIR__ . "/bootstrap/app.php";
+    $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+    $kernel->bootstrap();
+
+    try {
+        $exists = Illuminate\Support\Facades\Schema::hasTable("users");
+        if (! $exists) {
+            exit(1);
+        }
+
+        $count = (int) Illuminate\Support\Facades\DB::table("users")->count();
+        exit($count > 0 ? 0 : 2);
+    } catch (Throwable) {
+        exit(1);
+    }
+    '; then
+        echo "Users already exist, skipping AuthUserSeeder."
+    else
+        CHECK_EXIT=$?
+        if [ "$CHECK_EXIT" -eq 2 ]; then
+            echo "No users found, running AuthUserSeeder..."
+            CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=database php artisan db:seed --class=Modules\\User\\Database\\Seeders\\AuthUserSeeder --force
+        else
+            echo "Could not verify users table, skipping AuthUserSeeder."
+        fi
+    fi
+fi
+
+if [ "${AUTO_SEED_LOCATION_DATA:-1}" = "1" ]; then
+    echo "Checking seeded location data..."
+    if php -r '
+    require __DIR__ . "/vendor/autoload.php";
+    $app = require __DIR__ . "/bootstrap/app.php";
+    $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+    $kernel->bootstrap();
+
+    try {
+        $exists = Illuminate\Support\Facades\Schema::hasTable("countries");
+        if (! $exists) {
+            exit(1);
+        }
+
+        $count = (int) Illuminate\Support\Facades\DB::table("countries")->count();
+        exit($count >= 200 ? 0 : 2);
+    } catch (Throwable) {
+        exit(1);
+    }
+    '; then
+        echo "Countries dataset is complete, skipping LocationSeeder."
+    else
+        CHECK_EXIT=$?
+        if [ "$CHECK_EXIT" -eq 2 ]; then
+            echo "Location dataset missing or incomplete (<200 countries), running LocationSeeder..."
+            CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=database php -d memory_limit=${LOCATION_SEED_MEMORY_LIMIT:-1024M} artisan db:seed --class=Modules\\Location\\Database\\Seeders\\LocationSeeder --force
+        else
+            echo "Could not verify countries table, skipping LocationSeeder."
+        fi
+    fi
+fi
+
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
@@ -64,3 +128,4 @@ php artisan storage:link
 
 php-fpm -D
 nginx -g 'daemon off;'
+

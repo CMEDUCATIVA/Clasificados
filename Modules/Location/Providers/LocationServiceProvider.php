@@ -3,6 +3,7 @@
 namespace Modules\Location\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Modules\Location\Console\Commands\SyncWorldLocationDataCommand;
 
 class LocationServiceProvider extends ServiceProvider
 {
@@ -15,5 +16,9 @@ class LocationServiceProvider extends ServiceProvider
     }
 
     public function register(): void
-    {}
+    {
+        $this->commands([
+            SyncWorldLocationDataCommand::class,
+        ]);
+    }
 }

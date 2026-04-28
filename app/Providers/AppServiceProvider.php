@@ -5,6 +5,7 @@ namespace App\Providers;
 use BezhanSalleh\LanguageSwitch\LanguageSwitch;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
@@ -17,6 +18,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if (app()->isProduction()) {
+            URL::forceScheme('https');
+        }
+
         Gate::before(function ($user): null | bool {
             if (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
                 return true;

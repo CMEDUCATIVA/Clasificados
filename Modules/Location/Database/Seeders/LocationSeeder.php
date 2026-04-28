@@ -125,20 +125,11 @@ class LocationSeeder extends Seeder
 
     private function worldDataset(): ?array
     {
-        $localPath = trim((string) config('location.seed.dataset_local_path', ''));
+        return $this->downloadWorldDataset();
+    }
 
-        if ($localPath !== '') {
-            $absoluteLocalPath = base_path($localPath);
-
-            if (is_file($absoluteLocalPath)) {
-                $localDecoded = $this->decodeDataset((string) file_get_contents($absoluteLocalPath), $absoluteLocalPath);
-
-                if ($localDecoded !== null) {
-                    return $localDecoded;
-                }
-            }
-        }
-
+    private function downloadWorldDataset(): ?array
+    {
         $urls = config('location.seed.dataset_urls', []);
 
         if (! is_array($urls)) {

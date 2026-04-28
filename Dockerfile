@@ -20,10 +20,13 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist
-
 COPY . .
+
+RUN if [ -f composer.lock ]; then \
+      composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction; \
+    else \
+      composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction; \
+    fi
 
 RUN composer dump-autoload --optimize \
     && npm ci \

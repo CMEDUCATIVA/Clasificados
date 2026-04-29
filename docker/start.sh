@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+echo "START_SH_VERSION=2026-04-28-core-location-sync-v2"
+
 if [ ! -f /var/www/html/.env ]; then
     echo ".env file not found. Configure environment variables in EasyPanel and provide an .env file."
     exit 1
@@ -89,9 +91,62 @@ if [ "${AUTO_SEED_AUTH_USERS:-1}" = "1" ]; then
     fi
 fi
 
+AUTO_SEED_LOCATION_DATA=0
+
 if [ "${AUTO_SYNC_LOCATION_ON_BOOT:-1}" = "1" ]; then
-    echo "Starting non-blocking location sync command in background..."
-    CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=database php artisan location:sync-world >> /var/www/html/storage/logs/location-sync.log 2>&1 &
+    echo "Checking location dataset integrity..."
+    if php -r '
+    require __DIR__ . "/vendor/autoload.php";
+    $app = require __DIR__ . "/bootstrap/app.php";
+    $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+    $kernel->bootstrap();
+
+    try {
+        if (! Illuminate\Support\Facades\Schema::hasTable("countries")
+            || ! Illuminate\Support\Facades\Schema::hasTable("cities")
+            || ! Illuminate\Support\Facades\Schema::hasTable("districts")) {
+            exit(2);
+        }
+
+        $minimumCountries = (int) env("LOCATION_SEED_MINIMUM_COUNTRIES", 22);
+        $countriesCount = (int) Illuminate\Support\Facades\DB::table("countries")->count();
+        $peruCities = (int) Illuminate\Support\Facades\DB::table("cities")
+            ->join("countries", "countries.id", "=", "cities.country_id")
+            ->where("countries.code", "PE")
+            ->count();
+
+        if ($countriesCount >= $minimumCountries && $peruCities > 0) {
+            exit(0);
+        }
+
+        exit(2);
+    } catch (Throwable) {
+        exit(1);
+    }
+    '; then
+        echo "Location dataset is complete, skipping auto reseed."
+    else
+        CHECK_EXIT=$?
+        if [ "$CHECK_EXIT" -eq 2 ]; then
+            echo "Location dataset incomplete, running automatic truncate + LocationSeeder..."
+            php -r '
+            require __DIR__ . "/vendor/autoload.php";
+            $app = require __DIR__ . "/bootstrap/app.php";
+            $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+            $kernel->bootstrap();
+
+            Illuminate\Support\Facades\DB::statement("SET FOREIGN_KEY_CHECKS=0");
+            Illuminate\Support\Facades\DB::table("districts")->truncate();
+            Illuminate\Support\Facades\DB::table("cities")->truncate();
+            Illuminate\Support\Facades\DB::table("countries")->truncate();
+            Illuminate\Support\Facades\DB::statement("SET FOREIGN_KEY_CHECKS=1");
+            '
+
+            CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=database php -d memory_limit=${LOCATION_SEED_MEMORY_LIMIT:-1024M} artisan db:seed --class=Modules\\Location\\Database\\Seeders\\LocationSeeder --force
+        else
+            echo "Could not verify location tables, skipping auto reseed."
+        fi
+    fi
 fi
 
 php artisan config:cache

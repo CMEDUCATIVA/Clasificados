@@ -128,21 +128,27 @@ if [ "${AUTO_SYNC_LOCATION_ON_BOOT:-1}" = "1" ]; then
     else
         CHECK_EXIT=$?
         if [ "$CHECK_EXIT" -eq 2 ]; then
-            echo "Location dataset incomplete, running automatic truncate + LocationSeeder..."
-            php -r '
-            require __DIR__ . "/vendor/autoload.php";
-            $app = require __DIR__ . "/bootstrap/app.php";
-            $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
-            $kernel->bootstrap();
+            echo "Location dataset incomplete."
+            if [ "${AUTO_SYNC_LOCATION_BLOCKING_ON_BOOT:-0}" = "1" ]; then
+                echo "Running blocking automatic truncate + LocationSeeder..."
+                php -r '
+                require __DIR__ . "/vendor/autoload.php";
+                $app = require __DIR__ . "/bootstrap/app.php";
+                $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+                $kernel->bootstrap();
 
-            Illuminate\Support\Facades\DB::statement("SET FOREIGN_KEY_CHECKS=0");
-            Illuminate\Support\Facades\DB::table("districts")->truncate();
-            Illuminate\Support\Facades\DB::table("cities")->truncate();
-            Illuminate\Support\Facades\DB::table("countries")->truncate();
-            Illuminate\Support\Facades\DB::statement("SET FOREIGN_KEY_CHECKS=1");
-            '
+                Illuminate\Support\Facades\DB::statement("SET FOREIGN_KEY_CHECKS=0");
+                Illuminate\Support\Facades\DB::table("districts")->truncate();
+                Illuminate\Support\Facades\DB::table("cities")->truncate();
+                Illuminate\Support\Facades\DB::table("countries")->truncate();
+                Illuminate\Support\Facades\DB::statement("SET FOREIGN_KEY_CHECKS=1");
+                '
 
-            CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=database php -d memory_limit=${LOCATION_SEED_MEMORY_LIMIT:-1024M} artisan db:seed --class=Modules\\Location\\Database\\Seeders\\LocationSeeder --force
+                CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=database php -d memory_limit=${LOCATION_SEED_MEMORY_LIMIT:-1024M} artisan db:seed --class=Modules\\Location\\Database\\Seeders\\LocationSeeder --force
+            else
+                echo "Skipping blocking reseed on boot (AUTO_SYNC_LOCATION_BLOCKING_ON_BOOT=0)."
+                echo "You can run location sync manually after startup if needed."
+            fi
         else
             echo "Could not verify location tables, skipping auto reseed."
         fi
